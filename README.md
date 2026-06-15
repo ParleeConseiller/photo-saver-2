@@ -77,8 +77,8 @@ Or click **Settings** in the Windows Screen Saver Settings dialog.
 | Display cycle | Batch reset vs. continuous rolling | Batch |
 | Card border | Polaroid / Thin white / None | Polaroid |
 | Background | A single media file (image, GIF, WebP, or video) that plays looping behind all the cards; leave blank for the default dark surface | (none) |
-| Card orientation | **Natural** — respect each image's own orientation · **Landscape** — rotate portrait images 90° so all cards are wider-than-tall · **Portrait** — rotate landscape images 90° so all cards are taller-than-wide | Natural |
-| Background scaling | **Stretch** — fill screen ignoring aspect ratio · **Fit** — full image visible, dark bars on unused edges · **Fill** — zoom to cover, crop edges, no bars | Stretch |
+| Card orientation | **Natural** — each card's shape matches its source media (landscape image → wide card, portrait video → tall card) · **Landscape** — force all cards to 16:9 wide frame; content is cover-scaled to fill · **Portrait** — force all cards to 9:16 tall frame; content is cover-scaled to fill | Natural |
+| Background scaling | **Fill** — zoom to cover, crop edges (no bars) · **Fit** — full image visible, dark bars on unused edges · **Stretch** — fill screen ignoring aspect ratio · **Center** — original size, centred · **Tile** — repeat image to fill the screen | Fill |
 
 Settings are stored in `HKCU\SOFTWARE\PhotoSaverAnimated` (separate from v1's key).
 

@@ -71,6 +71,7 @@ public sealed class ScreenSaverForm : Form
     private bool             _rollingMode;
     private CardBorderStyle  _borderStyle;
     private CardOrientation  _cardOrientation;
+    private int              _maxPx;
 
     private List<AnimFrame>? _bgFrames;
     private VideoPlayer?     _bgVideo;
@@ -141,6 +142,7 @@ public sealed class ScreenSaverForm : Form
         _borderStyle      = AppSettings.CardBorder;
         _bgFit            = AppSettings.BackgroundFitMode;
         _cardOrientation  = AppSettings.CardOrientationMode;
+        _maxPx            = Math.Max((int)(Math.Min(ClientSize.Width, ClientSize.Height) * MaxPhotoFrac), 80);
         _launchTimer.Interval = Math.Max(500, AppSettings.LaunchIntervalSeconds * 1000);
         _renderTimer.Start();
         _ = LoadMediaAsync();
@@ -185,8 +187,7 @@ public sealed class ScreenSaverForm : Form
                     .ToArray();
             }
 
-            int maxPx = (int)(Math.Min(ClientSize.Width, ClientSize.Height) * MaxPhotoFrac);
-            maxPx = Math.Max(maxPx, 80);
+            int maxPx = _maxPx;
 
             foreach (var path in files)
             {
@@ -198,16 +199,6 @@ public sealed class ScreenSaverForm : Form
                     : await Task.Run(() => TryMakeImageEntry(path, maxPx));
 
                 if (entry == null) continue;
-
-                if (entry.Kind != MediaKind.Video && _cardOrientation != CardOrientation.Natural)
-                {
-                    bool isLandscape = entry.Width > entry.Height;
-                    bool isPortrait  = entry.Height > entry.Width;
-                    bool needsRotate = (_cardOrientation == CardOrientation.Landscape && isPortrait)
-                                   || (_cardOrientation == CardOrientation.Portrait  && isLandscape);
-                    if (needsRotate) entry = RotateEntry90(entry);
-                }
-
                 _media.Add(entry);
 
                 if (_stage == Stage.Loading)
@@ -393,16 +384,31 @@ public sealed class ScreenSaverForm : Form
 
         var entry = _media[_nextIdx];
         int nextZ = _cards.Count > 0 ? _cards.Max(c => c.ZOrder) + 1 : 0;
-        var fp    = ComputeFlightPath(entry.Width, entry.Height);
+
+        // Card frame shape: Natural = match source dims, Landscape = 16:9, Portrait = 9:16
+        int cardW, cardH;
+        switch (_cardOrientation)
+        {
+            case CardOrientation.Landscape:
+                cardW = _maxPx; cardH = Math.Max(1, (int)(_maxPx * 9.0 / 16.0)); break;
+            case CardOrientation.Portrait:
+                cardH = _maxPx; cardW = Math.Max(1, (int)(_maxPx * 9.0 / 16.0)); break;
+            default:
+                cardW = entry.Width; cardH = entry.Height; break;
+        }
+
+        var fp = ComputeFlightPath(cardW, cardH);
 
         PhotoCard card;
         if (entry.Kind == MediaKind.Video)
         {
-            var vp = new VideoPlayer(entry.VideoPath!, entry.Width, entry.Height);
+            // Tell VLC to decode at the card frame dimensions so the buffer is the right size.
+            var vp = new VideoPlayer(entry.VideoPath!, cardW, cardH);
             card = new PhotoCard
             {
                 Kind = MediaKind.Video, VideoPlayer = vp,
                 PhotoWidth = entry.Width, PhotoHeight = entry.Height,
+                CardWidth = cardW, CardHeight = cardH,
                 X = fp.StartX, Y = fp.StartY, Rotation = fp.StartRot, Scale = 0.65f,
                 StartX = fp.StartX, StartY = fp.StartY, StartRotation = fp.StartRot,
                 TargetX = fp.TargetX, TargetY = fp.TargetY, TargetRotation = fp.TargetRot,
@@ -415,6 +421,7 @@ public sealed class ScreenSaverForm : Form
             {
                 Kind = entry.Kind, Frames = entry.Frames,
                 PhotoWidth = entry.Width, PhotoHeight = entry.Height,
+                CardWidth = cardW, CardHeight = cardH,
                 X = fp.StartX, Y = fp.StartY, Rotation = fp.StartRot, Scale = 0.65f,
                 StartX = fp.StartX, StartY = fp.StartY, StartRotation = fp.StartRot,
                 TargetX = fp.TargetX, TargetY = fp.TargetY, TargetRotation = fp.TargetRot,
@@ -550,8 +557,7 @@ public sealed class ScreenSaverForm : Form
             {
                 int sw = e.BackendRenderTarget.Width;
                 int sh = e.BackendRenderTarget.Height;
-                using var bp  = new SKPaint { FilterQuality = SKFilterQuality.Low };
-                canvas.DrawBitmap(bgBmp, BgDestRect(bgBmp.Width, bgBmp.Height, sw, sh, _bgFit), bp);
+                DrawBackground(canvas, bgBmp, sw, sh, _bgFit);
                 using var dim = new SKPaint { Color = new SKColor(0, 0, 0, 80) };
                 canvas.DrawRect(0, 0, sw, sh, dim);
             }
@@ -577,11 +583,11 @@ public sealed class ScreenSaverForm : Form
         if (card.Kind == MediaKind.Video && !card.VideoPlayer!.HasFrame) return;
 
         var bmp  = card.CurrentBitmap;
-        int pw   = bmp.Width;
-        int ph   = bmp.Height;
+        float cw = card.CardWidth;   // card frame width (inside border)
+        float ch = card.CardHeight;  // card frame height
         var (bSide, bTop, bBottom) = GetBorderDims();
-        float cardW = pw + bSide * 2;
-        float cardH = ph + bTop + bBottom;
+        float cardW = cw + bSide * 2;
+        float cardH = ch + bTop + bBottom;
         byte  alpha = (byte)(255 * card.Alpha);
 
         canvas.Save();
@@ -600,10 +606,21 @@ public sealed class ScreenSaverForm : Form
             canvas.DrawRect(-cardW / 2f, -cardH / 2f, cardW, cardH, p);
         }
 
-        float photoX = -pw / 2f;
-        float photoY = -ph / 2f - (bBottom - bTop) / 2f;
+        // Photo area: positioned inside the border, offset for Polaroid's asymmetric bottom margin
+        float photoX = -cw / 2f;
+        float photoY = -ch / 2f - (bBottom - bTop) / 2f;
+        var dst = new SKRect(photoX, photoY, photoX + cw, photoY + ch);
+
+        // Cover-scale: compute source crop so the image fills the card frame at the correct AR.
+        // When card dims == bitmap dims (Natural mode) scale is 1.0 and the full bitmap is used.
+        float scale = Math.Max(cw / bmp.Width, ch / bmp.Height);
+        float visW = cw / scale, visH = ch / scale;
+        float srcX = (bmp.Width  - visW) / 2f;
+        float srcY = (bmp.Height - visH) / 2f;
+        var src = new SKRect(srcX, srcY, srcX + visW, srcY + visH);
+
         using var pp = new SKPaint { Color = SKColors.White.WithAlpha(alpha), FilterQuality = SKFilterQuality.Medium };
-        canvas.DrawBitmap(bmp, new SKRect(photoX, photoY, photoX + pw, photoY + ph), pp);
+        canvas.DrawBitmap(bmp, src, dst, pp);
 
         canvas.Restore();
     }
@@ -630,27 +647,43 @@ public sealed class ScreenSaverForm : Form
         if (Math.Abs(p.X - _lastMouse.X) > 3 || Math.Abs(p.Y - _lastMouse.Y) > 3) RequestExit();
     }
 
-    // Rotate all frames 90° CW and swap reported dimensions (portrait ↔ landscape).
-    // Called at load time before the entry is added to _media, so bitmaps have no other owners.
-    private static MediaEntry RotateEntry90(MediaEntry src)
+    private static void DrawBackground(SKCanvas canvas, SKBitmap bmp, int sw, int sh, BackgroundFit fit)
     {
-        var rotated = src.Frames.Select(f => {
-            var bmp = ApplyExifOrientation(f.Bitmap, SKEncodedOrigin.LeftBottom);
-            f.Bitmap.Dispose();
-            return new AnimFrame { Bitmap = bmp, DurationMs = f.DurationMs };
-        }).ToList();
-        return new MediaEntry { Kind = src.Kind, Frames = rotated, Width = src.Height, Height = src.Width };
-    }
-
-    private static SKRect BgDestRect(int bw, int bh, int sw, int sh, BackgroundFit fit)
-    {
-        if (fit == BackgroundFit.Stretch) return new SKRect(0, 0, sw, sh);
-        float scale = fit == BackgroundFit.Fit
-            ? Math.Min((float)sw / bw, (float)sh / bh)
-            : Math.Max((float)sw / bw, (float)sh / bh);   // Fill / cover
-        float dw = bw * scale, dh = bh * scale;
-        float ox = (sw - dw) / 2f,  oy = (sh - dh) / 2f;
-        return new SKRect(ox, oy, ox + dw, oy + dh);
+        using var paint = new SKPaint { FilterQuality = SKFilterQuality.Low };
+        switch (fit)
+        {
+            case BackgroundFit.Center:
+            {
+                float ox = (sw - bmp.Width) / 2f, oy = (sh - bmp.Height) / 2f;
+                canvas.DrawBitmap(bmp, new SKPoint(ox, oy), paint);
+                break;
+            }
+            case BackgroundFit.Tile:
+                using (var shader = SKShader.CreateBitmap(bmp, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat))
+                using (var tp = new SKPaint { Shader = shader })
+                    canvas.DrawRect(0, 0, sw, sh, tp);
+                break;
+            case BackgroundFit.Stretch:
+                canvas.DrawBitmap(bmp, new SKRect(0, 0, sw, sh), paint);
+                break;
+            case BackgroundFit.Fit:
+            {
+                float s = Math.Min((float)sw / bmp.Width, (float)sh / bmp.Height);
+                float dw = bmp.Width * s, dh = bmp.Height * s;
+                float ox = (sw - dw) / 2f, oy = (sh - dh) / 2f;
+                canvas.DrawBitmap(bmp, new SKRect(ox, oy, ox + dw, oy + dh), paint);
+                break;
+            }
+            case BackgroundFit.Fill:
+            default:
+            {
+                float s = Math.Max((float)sw / bmp.Width, (float)sh / bmp.Height);
+                float dw = bmp.Width * s, dh = bmp.Height * s;
+                float ox = (sw - dw) / 2f, oy = (sh - dh) / 2f;
+                canvas.DrawBitmap(bmp, new SKRect(ox, oy, ox + dw, oy + dh), paint);
+                break;
+            }
+        }
     }
 
     private static float EaseOutCubic(float t) => 1f - MathF.Pow(1f - t, 3f);

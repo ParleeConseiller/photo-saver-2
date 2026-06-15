@@ -38,9 +38,11 @@ public sealed class ConfigForm : Form
     private readonly RadioButton   _rbForcePortrait;
     private readonly TextBox       _bgFileBox;
     private readonly Label         _bgTypeLabel;
-    private readonly RadioButton   _rbBgStretch;
-    private readonly RadioButton   _rbBgFit;
     private readonly RadioButton   _rbBgFill;
+    private readonly RadioButton   _rbBgFit;
+    private readonly RadioButton   _rbBgStretch;
+    private readonly RadioButton   _rbBgCenter;
+    private readonly RadioButton   _rbBgTile;
 
     public ConfigForm()
     {
@@ -157,10 +159,10 @@ public sealed class ConfigForm : Form
 
         // ── CARD ORIENTATION ─────────────────────────────────────────────────
         scroll.Controls.Add(SectionLabel("CARD ORIENTATION", 22, 513));
-        scroll.Controls.Add(MutedLabel("Rotate images so all cards share the same orientation", 24, 530));
-        _rbNatural        = Radio("Natural — respect each image's own orientation");
-        _rbForceLandscape = Radio("Landscape — rotate portrait images 90°");
-        _rbForcePortrait  = Radio("Portrait — rotate landscape images 90°");
+        scroll.Controls.Add(MutedLabel("Shape of the polaroid card — adapts to each image or forces a fixed aspect ratio", 24, 530));
+        _rbNatural        = Radio("Natural — each card matches its own image's shape");
+        _rbForceLandscape = Radio("Landscape — force all cards to 16:9 wide frame");
+        _rbForcePortrait  = Radio("Portrait — force all cards to 9:16 tall frame");
         scroll.Controls.Add(RadioGroup(22, 547, 418, _rbNatural, _rbForceLandscape, _rbForcePortrait));
         scroll.Controls.Add(Divider(22, 616, 418));
 
@@ -195,10 +197,12 @@ public sealed class ConfigForm : Form
         scroll.Controls.Add(bgClearBtn);
 
         scroll.Controls.Add(SectionLabel("SCALING", 22, 720));
-        _rbBgStretch = Radio("Stretch — fill entire screen (ignores aspect ratio)");
-        _rbBgFit     = Radio("Fit — show full image, dark bars fill the rest");
         _rbBgFill    = Radio("Fill — zoom to cover, crop edges (no bars)");
-        scroll.Controls.Add(RadioGroup(22, 736, 418, _rbBgStretch, _rbBgFit, _rbBgFill));
+        _rbBgFit     = Radio("Fit — show full image, dark bars fill the rest");
+        _rbBgStretch = Radio("Stretch — fill entire screen (ignores aspect ratio)");
+        _rbBgCenter  = Radio("Center — original size, centred on screen");
+        _rbBgTile    = Radio("Tile — repeat image to fill the screen");
+        scroll.Controls.Add(RadioGroup(22, 736, 418, _rbBgFill, _rbBgFit, _rbBgStretch, _rbBgCenter, _rbBgTile));
 
         Controls.AddRange(new Control[] { header, scroll, footer });
         AcceptButton = saveBtn;
@@ -253,11 +257,13 @@ public sealed class ConfigForm : Form
         };
         _bgFileBox.Text = AppSettings.BackgroundFile;
         UpdateBgTypeLabel(AppSettings.BackgroundFile);
-        (_rbBgStretch.Checked, _rbBgFit.Checked, _rbBgFill.Checked) = AppSettings.BackgroundFitMode switch
+        (_rbBgFill.Checked, _rbBgFit.Checked, _rbBgStretch.Checked, _rbBgCenter.Checked, _rbBgTile.Checked) = AppSettings.BackgroundFitMode switch
         {
-            BackgroundFit.Fit  => (false, true,  false),
-            BackgroundFit.Fill => (false, false, true),
-            _                  => (true,  false, false),
+            BackgroundFit.Fit     => (false, true,  false, false, false),
+            BackgroundFit.Stretch => (false, false, true,  false, false),
+            BackgroundFit.Center  => (false, false, false, true,  false),
+            BackgroundFit.Tile    => (false, false, false, false, true),
+            _                     => (true,  false, false, false, false),  // Fill (default)
         };
         RefreshCount(_folderBox.Text);
     }
@@ -276,9 +282,11 @@ public sealed class ConfigForm : Form
                                           : _rbForcePortrait.Checked  ? CardOrientation.Portrait
                                           :                             CardOrientation.Natural;
         AppSettings.BackgroundFile        = _bgFileBox.Text;
-        AppSettings.BackgroundFitMode     = _rbBgFit.Checked  ? BackgroundFit.Fit
-                                          : _rbBgFill.Checked ? BackgroundFit.Fill
-                                          :                     BackgroundFit.Stretch;
+        AppSettings.BackgroundFitMode     = _rbBgFit.Checked     ? BackgroundFit.Fit
+                                          : _rbBgStretch.Checked ? BackgroundFit.Stretch
+                                          : _rbBgCenter.Checked  ? BackgroundFit.Center
+                                          : _rbBgTile.Checked    ? BackgroundFit.Tile
+                                          :                        BackgroundFit.Fill;
     }
 
     private void OnBrowse(object? s, EventArgs e)

@@ -62,9 +62,15 @@ public sealed class PhotoCard : IDisposable
     public CardState State          { get; set; } = CardState.Flying;
     public DateTime  FadeStartTime  { get; set; } = DateTime.MinValue;
 
-    // Stored so MakeCard geometry is consistent with DrawCard geometry
+    // Source media pixel dimensions (bitmap size or VLC decode size)
     public int PhotoWidth  { get; init; }
     public int PhotoHeight { get; init; }
+
+    // Visual card frame size — equals Photo dims for Natural mode, or a forced
+    // aspect ratio (16:9 / 9:16) for Landscape / Portrait mode. DrawCard
+    // cover-scales the bitmap to fill this frame.
+    public int CardWidth  { get; init; }
+    public int CardHeight { get; init; }
 
     public void Dispose()
     {
