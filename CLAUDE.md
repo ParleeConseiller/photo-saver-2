@@ -121,6 +121,7 @@ HKEY_CURRENT_USER\SOFTWARE\PhotoSaverAnimated
   CardBorder       REG_DWORD (0 = Polaroid, 1 = Thin white, 2 = None)
   BackgroundFile   REG_SZ    (path to background media file, default = "")
   BackgroundFit    REG_DWORD (0 = Stretch, 1 = Fit/letterbox, 2 = Fill/cover)
+  CardOrientation  REG_DWORD (0 = Natural, 1 = Force landscape, 2 = Force portrait)
 ```
 
 ---

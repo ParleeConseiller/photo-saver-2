@@ -68,8 +68,9 @@ public sealed class ScreenSaverForm : Form
     private DateTime _clearStart;
     private const double ClearSecs = 1.5;
 
-    private bool            _rollingMode;
-    private CardBorderStyle _borderStyle;
+    private bool             _rollingMode;
+    private CardBorderStyle  _borderStyle;
+    private CardOrientation  _cardOrientation;
 
     private List<AnimFrame>? _bgFrames;
     private VideoPlayer?     _bgVideo;
@@ -136,9 +137,10 @@ public sealed class ScreenSaverForm : Form
         if (!_preview) Cursor.Hide();
         _startTime    = DateTime.Now;
         _lastTickTime = DateTime.Now;
-        _rollingMode  = AppSettings.RollingMode;
-        _borderStyle  = AppSettings.CardBorder;
-        _bgFit        = AppSettings.BackgroundFitMode;
+        _rollingMode      = AppSettings.RollingMode;
+        _borderStyle      = AppSettings.CardBorder;
+        _bgFit            = AppSettings.BackgroundFitMode;
+        _cardOrientation  = AppSettings.CardOrientationMode;
         _launchTimer.Interval = Math.Max(500, AppSettings.LaunchIntervalSeconds * 1000);
         _renderTimer.Start();
         _ = LoadMediaAsync();
@@ -196,6 +198,16 @@ public sealed class ScreenSaverForm : Form
                     : await Task.Run(() => TryMakeImageEntry(path, maxPx));
 
                 if (entry == null) continue;
+
+                if (entry.Kind != MediaKind.Video && _cardOrientation != CardOrientation.Natural)
+                {
+                    bool isLandscape = entry.Width > entry.Height;
+                    bool isPortrait  = entry.Height > entry.Width;
+                    bool needsRotate = (_cardOrientation == CardOrientation.Landscape && isPortrait)
+                                   || (_cardOrientation == CardOrientation.Portrait  && isLandscape);
+                    if (needsRotate) entry = RotateEntry90(entry);
+                }
+
                 _media.Add(entry);
 
                 if (_stage == Stage.Loading)
@@ -616,6 +628,18 @@ public sealed class ScreenSaverForm : Form
         if (!ReadyToExit) return;
         if (!_mouseTracked) { _lastMouse = p; _mouseTracked = true; return; }
         if (Math.Abs(p.X - _lastMouse.X) > 3 || Math.Abs(p.Y - _lastMouse.Y) > 3) RequestExit();
+    }
+
+    // Rotate all frames 90° CW and swap reported dimensions (portrait ↔ landscape).
+    // Called at load time before the entry is added to _media, so bitmaps have no other owners.
+    private static MediaEntry RotateEntry90(MediaEntry src)
+    {
+        var rotated = src.Frames.Select(f => {
+            var bmp = ApplyExifOrientation(f.Bitmap, SKEncodedOrigin.LeftBottom);
+            f.Bitmap.Dispose();
+            return new AnimFrame { Bitmap = bmp, DurationMs = f.DurationMs };
+        }).ToList();
+        return new MediaEntry { Kind = src.Kind, Frames = rotated, Width = src.Height, Height = src.Width };
     }
 
     private static SKRect BgDestRect(int bw, int bh, int sw, int sh, BackgroundFit fit)
