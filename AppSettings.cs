@@ -4,6 +4,7 @@ namespace PhotoSaverAnimated;
 
 public enum MonitorMode     { All = 0, Primary = 1 }
 public enum CardBorderStyle { Polaroid = 0, Thin = 1, None = 2 }
+public enum BackgroundFit   { Stretch = 0, Fit = 1, Fill = 2 }
 
 public static class AppSettings
 {
@@ -49,6 +50,12 @@ public static class AppSettings
     {
         get => GetString("BackgroundFile", "");
         set => Set("BackgroundFile", value);
+    }
+
+    public static BackgroundFit BackgroundFitMode
+    {
+        get => (BackgroundFit)GetInt("BackgroundFit", 0);
+        set => Set("BackgroundFit", (int)value);
     }
 
     private static string GetString(string name, string defaultValue)

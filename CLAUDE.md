@@ -120,6 +120,7 @@ HKEY_CURRENT_USER\SOFTWARE\PhotoSaverAnimated
   RollingMode      REG_DWORD (0 = batch reset, 1 = continuous rolling)
   CardBorder       REG_DWORD (0 = Polaroid, 1 = Thin white, 2 = None)
   BackgroundFile   REG_SZ    (path to background media file, default = "")
+  BackgroundFit    REG_DWORD (0 = Stretch, 1 = Fit/letterbox, 2 = Fill/cover)
 ```
 
 ---

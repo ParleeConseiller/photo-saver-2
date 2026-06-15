@@ -77,6 +77,7 @@ public sealed class ScreenSaverForm : Form
     private int              _bgFrameIdx;
     private double           _bgFrameElapsedMs;
     private bool             _hasBackground;
+    private BackgroundFit    _bgFit;
 
     private bool ReadyToExit => !_preview && (DateTime.Now - _startTime).TotalSeconds > 1.0;
 
@@ -137,6 +138,7 @@ public sealed class ScreenSaverForm : Form
         _lastTickTime = DateTime.Now;
         _rollingMode  = AppSettings.RollingMode;
         _borderStyle  = AppSettings.CardBorder;
+        _bgFit        = AppSettings.BackgroundFitMode;
         _launchTimer.Interval = Math.Max(500, AppSettings.LaunchIntervalSeconds * 1000);
         _renderTimer.Start();
         _ = LoadMediaAsync();
@@ -537,7 +539,7 @@ public sealed class ScreenSaverForm : Form
                 int sw = e.BackendRenderTarget.Width;
                 int sh = e.BackendRenderTarget.Height;
                 using var bp  = new SKPaint { FilterQuality = SKFilterQuality.Low };
-                canvas.DrawBitmap(bgBmp, new SKRect(0, 0, sw, sh), bp);
+                canvas.DrawBitmap(bgBmp, BgDestRect(bgBmp.Width, bgBmp.Height, sw, sh, _bgFit), bp);
                 using var dim = new SKPaint { Color = new SKColor(0, 0, 0, 80) };
                 canvas.DrawRect(0, 0, sw, sh, dim);
             }
@@ -614,6 +616,17 @@ public sealed class ScreenSaverForm : Form
         if (!ReadyToExit) return;
         if (!_mouseTracked) { _lastMouse = p; _mouseTracked = true; return; }
         if (Math.Abs(p.X - _lastMouse.X) > 3 || Math.Abs(p.Y - _lastMouse.Y) > 3) RequestExit();
+    }
+
+    private static SKRect BgDestRect(int bw, int bh, int sw, int sh, BackgroundFit fit)
+    {
+        if (fit == BackgroundFit.Stretch) return new SKRect(0, 0, sw, sh);
+        float scale = fit == BackgroundFit.Fit
+            ? Math.Min((float)sw / bw, (float)sh / bh)
+            : Math.Max((float)sw / bw, (float)sh / bh);   // Fill / cover
+        float dw = bw * scale, dh = bh * scale;
+        float ox = (sw - dw) / 2f,  oy = (sh - dh) / 2f;
+        return new SKRect(ox, oy, ox + dw, oy + dh);
     }
 
     private static float EaseOutCubic(float t) => 1f - MathF.Pow(1f - t, 3f);

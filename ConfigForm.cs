@@ -35,6 +35,9 @@ public sealed class ConfigForm : Form
     private readonly RadioButton   _rbNoBorder;
     private readonly TextBox       _bgFileBox;
     private readonly Label         _bgTypeLabel;
+    private readonly RadioButton   _rbBgStretch;
+    private readonly RadioButton   _rbBgFit;
+    private readonly RadioButton   _rbBgFill;
 
     public ConfigForm()
     {
@@ -259,6 +262,38 @@ public sealed class ConfigForm : Form
         bgClearBtn.Click += (_, _) => { _bgFileBox.Text = ""; _bgTypeLabel.Text = "No background set"; _bgTypeLabel.ForeColor = C_MUTED; };
         scroll.Controls.Add(bgClearBtn);
 
+        scroll.Controls.Add(SectionLabel("SCALING", 22, 597));
+        _rbBgStretch = new RadioButton
+        {
+            Text      = "Stretch — fill entire screen (ignores aspect ratio)",
+            Location  = new Point(22, 613),
+            AutoSize  = true,
+            ForeColor = C_TEXT,
+            BackColor = C_BG,
+            Font      = new Font("Segoe UI", 9.5f),
+        };
+        _rbBgFit = new RadioButton
+        {
+            Text      = "Fit — show full image, dark bars fill the rest",
+            Location  = new Point(22, 633),
+            AutoSize  = true,
+            ForeColor = C_TEXT,
+            BackColor = C_BG,
+            Font      = new Font("Segoe UI", 9.5f),
+        };
+        _rbBgFill = new RadioButton
+        {
+            Text      = "Fill — zoom to cover, crop edges (no bars)",
+            Location  = new Point(22, 653),
+            AutoSize  = true,
+            ForeColor = C_TEXT,
+            BackColor = C_BG,
+            Font      = new Font("Segoe UI", 9.5f),
+        };
+        scroll.Controls.Add(_rbBgStretch);
+        scroll.Controls.Add(_rbBgFit);
+        scroll.Controls.Add(_rbBgFill);
+
         Controls.AddRange(new Control[] { header, scroll, footer });
 
         AcceptButton = saveBtn;
@@ -314,6 +349,12 @@ public sealed class ConfigForm : Form
         };
         _bgFileBox.Text = AppSettings.BackgroundFile;
         UpdateBgTypeLabel(AppSettings.BackgroundFile);
+        (_rbBgStretch.Checked, _rbBgFit.Checked, _rbBgFill.Checked) = AppSettings.BackgroundFitMode switch
+        {
+            BackgroundFit.Fit  => (false, true,  false),
+            BackgroundFit.Fill => (false, false, true),
+            _                  => (true,  false, false),
+        };
         RefreshCount(_folderBox.Text);
     }
 
@@ -328,6 +369,9 @@ public sealed class ConfigForm : Form
                                           : _rbNoBorder.Checked   ? CardBorderStyle.None
                                           :                         CardBorderStyle.Polaroid;
         AppSettings.BackgroundFile        = _bgFileBox.Text;
+        AppSettings.BackgroundFitMode     = _rbBgFit.Checked  ? BackgroundFit.Fit
+                                          : _rbBgFill.Checked ? BackgroundFit.Fill
+                                          :                     BackgroundFit.Stretch;
     }
 
     private void OnBrowse(object? s, EventArgs e)
