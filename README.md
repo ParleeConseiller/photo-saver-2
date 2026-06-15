@@ -12,6 +12,7 @@ Supports **still images**, **animated GIFs**, **animated WebPs**, and **videos (
 - **Video files** — MP4, AVI, MOV, MKV, WMV, M4V, FLV via LibVLC; plays silently, loops automatically
 - **Still photos** — JPG, JPEG, PNG with EXIF orientation correction
 - **Polaroid cards** — warm white border (or thin border, or no border)
+- **Animated background** — set any image, GIF, WebP, or video to play looping behind all the cards
 - **Smooth GPU animation** — SkiaSharp + OpenGL at 60 fps
 - **Rolling / continuous mode** — new media replaces the oldest card with a smooth fade; no full-screen reset
 - **Multi-monitor support** — all monitors or primary only
@@ -75,6 +76,7 @@ Or click **Settings** in the Windows Screen Saver Settings dialog.
 | Display monitors | All active monitors or primary only | All |
 | Display cycle | Batch reset vs. continuous rolling | Batch |
 | Card border | Polaroid / Thin white / None | Polaroid |
+| Background | A single media file (image, GIF, WebP, or video) that plays looping behind all the cards; leave blank for the default dark surface | (none) |
 
 Settings are stored in `HKCU\SOFTWARE\PhotoSaverAnimated` (separate from v1's key).
 

@@ -53,7 +53,7 @@ public sealed class ConfigForm : Form
         header.Paint += PaintHeader;
 
         // ── Footer ───────────────────────────────────────────────────────────
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 76, BackColor = C_FOOTER };
+        var footer = new Panel { Location = new Point(0, 484), Size = new Size(460, 76), BackColor = C_FOOTER };
         footer.Paint += PaintFooter;
 
         var creditLabel = new Label
@@ -78,12 +78,14 @@ public sealed class ConfigForm : Form
         footer.Controls.AddRange(new Control[] { creditLabel, cancelBtn, saveBtn });
 
         // ── Scrollable content ────────────────────────────────────────────────
+        // Explicit position keeps layout unambiguous — header 74px, scroll 410px, footer 76px = 560px total
         var scroll = new Panel
         {
-            Dock              = DockStyle.Fill,
-            AutoScroll        = true,
-            AutoScrollMargin  = new Size(0, 20),
-            BackColor         = C_BG,
+            Location         = new Point(0, 74),
+            Size             = new Size(460, 410),
+            AutoScroll       = true,
+            AutoScrollMargin = new Size(0, 20),
+            BackColor        = C_BG,
         };
 
         // Section: Media folder
@@ -234,6 +236,17 @@ public sealed class ConfigForm : Form
         };
         scroll.Controls.Add(_bgFileBox);
 
+        // Initialise _bgTypeLabel before Clear button so its lambda captures the assigned field
+        _bgTypeLabel = new Label
+        {
+            Location  = new Point(24, 582),
+            Size      = new Size(414, 18),
+            Font      = new Font("Segoe UI", 8.5f),
+            ForeColor = C_MUTED,
+            Text      = "No background set",
+        };
+        scroll.Controls.Add(_bgTypeLabel);
+
         var bgBrowseBtn = FlatBtn("Browse…", 276, 548, 76, 28, C_INPUT, C_TEXT);
         bgBrowseBtn.FlatAppearance.BorderSize  = 1;
         bgBrowseBtn.FlatAppearance.BorderColor = C_ACCENT;
@@ -246,20 +259,7 @@ public sealed class ConfigForm : Form
         bgClearBtn.Click += (_, _) => { _bgFileBox.Text = ""; _bgTypeLabel.Text = "No background set"; _bgTypeLabel.ForeColor = C_MUTED; };
         scroll.Controls.Add(bgClearBtn);
 
-        _bgTypeLabel = new Label
-        {
-            Location  = new Point(24, 582),
-            Size      = new Size(414, 18),
-            Font      = new Font("Segoe UI", 8.5f),
-            ForeColor = C_MUTED,
-            Text      = "No background set",
-        };
-        scroll.Controls.Add(_bgTypeLabel);
-
-        // Controls added in dock order: Fill panel last
-        Controls.Add(header);
-        Controls.Add(footer);
-        Controls.Add(scroll);
+        Controls.AddRange(new Control[] { header, scroll, footer });
 
         AcceptButton = saveBtn;
         CancelButton = cancelBtn;
