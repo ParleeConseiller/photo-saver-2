@@ -95,4 +95,28 @@ public sealed class VideoPlayer : IDisposable
         _mp.Dispose();
         foreach (var b in _bufs) b.Dispose();
     }
+
+    /// <summary>
+    /// Parses the video file to discover its native pixel dimensions.
+    /// Safe to call from a background thread. Falls back to 1920×1080 on failure.
+    /// </summary>
+    public static (int Width, int Height) ProbeVideoDimensions(string path)
+    {
+        try
+        {
+            using var media = new Media(Vlc, path, FromType.FromPath);
+            var status = media.Parse(MediaParseOptions.ParseLocal, 3000)
+                              .GetAwaiter().GetResult();
+            if (status == MediaParsedStatus.Done)
+            {
+                foreach (var track in media.Tracks)
+                {
+                    if (track.TrackType == TrackType.Video && track.Data.Video.Width > 0)
+                        return ((int)track.Data.Video.Width, (int)track.Data.Video.Height);
+                }
+            }
+        }
+        catch { }
+        return (1920, 1080);
+    }
 }

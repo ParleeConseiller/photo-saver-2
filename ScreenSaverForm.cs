@@ -231,7 +231,17 @@ public sealed class ScreenSaverForm : Form
 
         if (VideoExts.Contains(ext))
         {
-            _bgVideo       = await Task.Run(() => new VideoPlayer(path, sw, sh));
+            // Probe native dimensions so VLC decodes at the correct aspect ratio.
+            // DrawBackground then scales the natural-AR bitmap to fit the screen.
+            int maxDim = Math.Max(sw, sh);
+            _bgVideo = await Task.Run(() =>
+            {
+                var (vw, vh) = VideoPlayer.ProbeVideoDimensions(path);
+                float s = Math.Min(1f, Math.Min((float)maxDim / vw, (float)maxDim / vh));
+                int dw = Math.Max(1, (int)(vw * s));
+                int dh = Math.Max(1, (int)(vh * s));
+                return new VideoPlayer(path, dw, dh);
+            });
             _bgKind        = MediaKind.Video;
             _hasBackground = true;
         }
