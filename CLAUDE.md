@@ -90,6 +90,11 @@ If you add code that reads `_bufs[0]` inside a lock block, you risk locking out 
 ### 7. GIF/WebP frame compositing uses RequiredFrame
 Many animated GIFs use delta frames (only changed pixels, transparent elsewhere) that must be composited on top of the previous frame. `DecodeAnimatedFrames()` in `ScreenSaverForm.cs` reads `frameInfos[fi].RequiredFrame` and copies the prior bitmap before decoding the overlay. Removing this will cause GIFs with delta frames to look corrupt.
 
+### 8. Background video must be probed before VideoPlayer creation
+`LoadBackgroundAsync` calls `VideoPlayer.ProbeVideoDimensions(path)` before creating the `VideoPlayer`. This matters because `SetVideoFormat("RV32", w, h, stride)` tells VLC to decode into a buffer of exactly `w × h` pixels — if `w/h` don't match the video's native aspect ratio, VLC stretches the content to fit, and `DrawBackground` (which cover-scales the bitmap to the screen) will receive a pre-distorted bitmap that looks correct at scale=1 but is actually stretched.
+
+**Do not replace this with `new VideoPlayer(path, screenW, screenH)`** — that was the prior bug. The probe uses `media.Parse(MediaParseOptions.ParseLocal, 3000)` on the shared `LibVLC` instance, reads `media.Tracks`, and falls back to 1920×1080 on failure. The VideoPlayer is then created at the probed dimensions (capped to `max(screenW, screenH)`) so VLC decodes at the correct AR and `DrawBackground` can apply the user's chosen scaling mode cleanly.
+
 ---
 
 ## Animation parameters
