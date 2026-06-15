@@ -45,6 +45,12 @@ public static class AppSettings
         set => Set("CardBorder", (int)value);
     }
 
+    public static string BackgroundFile
+    {
+        get => GetString("BackgroundFile", "");
+        set => Set("BackgroundFile", value);
+    }
+
     private static string GetString(string name, string defaultValue)
     {
         using var key = Registry.CurrentUser.OpenSubKey(RegPath);

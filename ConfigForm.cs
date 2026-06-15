@@ -33,11 +33,13 @@ public sealed class ConfigForm : Form
     private readonly RadioButton   _rbPolaroid;
     private readonly RadioButton   _rbThinBorder;
     private readonly RadioButton   _rbNoBorder;
+    private readonly TextBox       _bgFileBox;
+    private readonly Label         _bgTypeLabel;
 
     public ConfigForm()
     {
         Text            = "Photo Screensaver Animated — Settings";
-        ClientSize      = new Size(460, 618);
+        ClientSize      = new Size(460, 560);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox     = false;
         MinimizeBox     = false;
@@ -50,16 +52,42 @@ public sealed class ConfigForm : Form
         var header = new Panel { Dock = DockStyle.Top, Height = 74, BackColor = C_HEADER };
         header.Paint += PaintHeader;
 
-        // ── Content ──────────────────────────────────────────────────────────
-        var content = new Panel
+        // ── Footer ───────────────────────────────────────────────────────────
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 76, BackColor = C_FOOTER };
+        footer.Paint += PaintFooter;
+
+        var creditLabel = new Label
         {
-            Location  = new Point(0, 74),
-            Size      = new Size(460, 468),
-            BackColor = C_BG,
+            Text      = "by Jose-Jorge HERNANDEZ",
+            Location  = new Point(18, 26),
+            AutoSize  = true,
+            ForeColor = C_CREDIT,
+            Font      = new Font("Segoe UI", 8f, FontStyle.Italic),
         };
 
-        // Section: Photos folder
-        content.Controls.Add(SectionLabel("MEDIA FOLDER", 22, 16));
+        var cancelBtn = FlatBtn("Cancel", 258, 22, 90, 34, C_INPUT, C_TEXT);
+        cancelBtn.FlatAppearance.BorderSize  = 1;
+        cancelBtn.FlatAppearance.BorderColor = C_DIV;
+        cancelBtn.Click += (_, _) => Close();
+
+        var saveBtn = FlatBtn("Save", 357, 22, 82, 34, C_ACCENT, Color.White);
+        saveBtn.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+        saveBtn.FlatAppearance.BorderSize = 0;
+        saveBtn.Click += (_, _) => { OnSave(); Close(); };
+
+        footer.Controls.AddRange(new Control[] { creditLabel, cancelBtn, saveBtn });
+
+        // ── Scrollable content ────────────────────────────────────────────────
+        var scroll = new Panel
+        {
+            Dock              = DockStyle.Fill,
+            AutoScroll        = true,
+            AutoScrollMargin  = new Size(0, 20),
+            BackColor         = C_BG,
+        };
+
+        // Section: Media folder
+        scroll.Controls.Add(SectionLabel("MEDIA FOLDER", 22, 16));
         _folderBox = new TextBox
         {
             Location    = new Point(22, 36),
@@ -71,13 +99,13 @@ public sealed class ConfigForm : Form
             Cursor      = Cursors.Arrow,
             Font        = new Font("Segoe UI", 9f),
         };
-        content.Controls.Add(_folderBox);
+        scroll.Controls.Add(_folderBox);
 
         var browseBtn = FlatBtn("Browse…", 346, 36, 92, 28, C_INPUT, C_TEXT);
         browseBtn.FlatAppearance.BorderSize  = 1;
         browseBtn.FlatAppearance.BorderColor = C_ACCENT;
         browseBtn.Click += OnBrowse;
-        content.Controls.Add(browseBtn);
+        scroll.Controls.Add(browseBtn);
 
         _countLabel = new Label
         {
@@ -86,28 +114,28 @@ public sealed class ConfigForm : Form
             Font      = new Font("Segoe UI", 8.5f),
             ForeColor = C_MUTED,
         };
-        content.Controls.Add(_countLabel);
+        scroll.Controls.Add(_countLabel);
 
-        content.Controls.Add(Divider(22, 97, 418));
+        scroll.Controls.Add(Divider(22, 97, 418));
 
         // Section: Interval
-        content.Controls.Add(SectionLabel("SECONDS BETWEEN PHOTOS", 22, 113));
-        content.Controls.Add(MutedLabel("Gap before the next photo flies in", 24, 132));
+        scroll.Controls.Add(SectionLabel("SECONDS BETWEEN PHOTOS", 22, 113));
+        scroll.Controls.Add(MutedLabel("Gap before the next photo flies in", 24, 132));
         _intervalSpin = StyledSpin(386, 113, 1, 60);
-        content.Controls.Add(_intervalSpin);
+        scroll.Controls.Add(_intervalSpin);
 
-        content.Controls.Add(Divider(22, 157, 418));
+        scroll.Controls.Add(Divider(22, 157, 418));
 
         // Section: Max photos
-        content.Controls.Add(SectionLabel("MAX PHOTOS ON SCREEN", 22, 173));
-        content.Controls.Add(MutedLabel("Cards (photos, GIFs, videos) accumulate to this limit, then reset", 24, 192));
+        scroll.Controls.Add(SectionLabel("MAX PHOTOS ON SCREEN", 22, 173));
+        scroll.Controls.Add(MutedLabel("Cards (photos, GIFs, videos) accumulate to this limit, then reset", 24, 192));
         _maxPhotosSpin = StyledSpin(386, 173, 1, 20);
-        content.Controls.Add(_maxPhotosSpin);
+        scroll.Controls.Add(_maxPhotosSpin);
 
-        content.Controls.Add(Divider(22, 218, 418));
+        scroll.Controls.Add(Divider(22, 218, 418));
 
         // Section: Monitor display
-        content.Controls.Add(SectionLabel("DISPLAY MONITORS", 22, 234));
+        scroll.Controls.Add(SectionLabel("DISPLAY MONITORS", 22, 234));
 
         _rbAll = new RadioButton
         {
@@ -128,18 +156,18 @@ public sealed class ConfigForm : Form
             Font      = new Font("Segoe UI", 9.5f),
         };
         int screenCount = Screen.AllScreens.Length;
-        content.Controls.Add(MutedLabel(
+        scroll.Controls.Add(MutedLabel(
             screenCount > 1
                 ? $"{screenCount} monitors detected on this system"
                 : "Only 1 monitor detected — multi-monitor has no effect",
             22, 298));
-        content.Controls.Add(_rbAll);
-        content.Controls.Add(_rbPrimary);
+        scroll.Controls.Add(_rbAll);
+        scroll.Controls.Add(_rbPrimary);
 
-        content.Controls.Add(Divider(22, 316, 418));
+        scroll.Controls.Add(Divider(22, 316, 418));
 
         // Section: Display cycle (rolling mode)
-        content.Controls.Add(SectionLabel("DISPLAY CYCLE", 22, 332));
+        scroll.Controls.Add(SectionLabel("DISPLAY CYCLE", 22, 332));
         _chkRolling = new CheckBox
         {
             Text      = "Continuous — new photos replace the oldest card",
@@ -149,13 +177,13 @@ public sealed class ConfigForm : Form
             BackColor = C_BG,
             Font      = new Font("Segoe UI", 9.5f),
         };
-        content.Controls.Add(_chkRolling);
-        content.Controls.Add(MutedLabel("Off: photos accumulate until the screen resets. On: endless rolling flow.", 24, 372));
+        scroll.Controls.Add(_chkRolling);
+        scroll.Controls.Add(MutedLabel("Off: photos accumulate until the screen resets. On: endless rolling flow.", 24, 372));
 
-        content.Controls.Add(Divider(22, 396, 418));
+        scroll.Controls.Add(Divider(22, 396, 418));
 
         // Section: Card border style
-        content.Controls.Add(SectionLabel("CARD BORDER", 22, 412));
+        scroll.Controls.Add(SectionLabel("CARD BORDER", 22, 412));
         _rbPolaroid = new RadioButton
         {
             Text      = "Polaroid — classic instant-photo look",
@@ -183,41 +211,56 @@ public sealed class ConfigForm : Form
             BackColor = C_BG,
             Font      = new Font("Segoe UI", 9.5f),
         };
-        content.Controls.Add(_rbPolaroid);
-        content.Controls.Add(_rbThinBorder);
-        content.Controls.Add(_rbNoBorder);
+        scroll.Controls.Add(_rbPolaroid);
+        scroll.Controls.Add(_rbThinBorder);
+        scroll.Controls.Add(_rbNoBorder);
 
-        // ── Footer ───────────────────────────────────────────────────────────
-        var footer = new Panel
+        scroll.Controls.Add(Divider(22, 497, 418));
+
+        // Section: Animated background
+        scroll.Controls.Add(SectionLabel("BACKGROUND", 22, 513));
+        scroll.Controls.Add(MutedLabel("A media file to play behind the cards — GIF, WebP, video or still image.", 24, 530));
+
+        _bgFileBox = new TextBox
         {
-            Location  = new Point(0, 542),
-            Size      = new Size(460, 76),
-            BackColor = C_FOOTER,
+            Location    = new Point(22, 548),
+            Size        = new Size(246, 28),
+            BackColor   = C_INPUT,
+            ForeColor   = C_TEXT,
+            BorderStyle = BorderStyle.FixedSingle,
+            ReadOnly    = true,
+            Cursor      = Cursors.Arrow,
+            Font        = new Font("Segoe UI", 9f),
         };
-        footer.Paint += PaintFooter;
+        scroll.Controls.Add(_bgFileBox);
 
-        var creditLabel = new Label
+        var bgBrowseBtn = FlatBtn("Browse…", 276, 548, 76, 28, C_INPUT, C_TEXT);
+        bgBrowseBtn.FlatAppearance.BorderSize  = 1;
+        bgBrowseBtn.FlatAppearance.BorderColor = C_ACCENT;
+        bgBrowseBtn.Click += OnBrowseBackground;
+        scroll.Controls.Add(bgBrowseBtn);
+
+        var bgClearBtn = FlatBtn("Clear", 360, 548, 60, 28, C_INPUT, C_MUTED);
+        bgClearBtn.FlatAppearance.BorderSize  = 1;
+        bgClearBtn.FlatAppearance.BorderColor = C_DIV;
+        bgClearBtn.Click += (_, _) => { _bgFileBox.Text = ""; _bgTypeLabel.Text = "No background set"; _bgTypeLabel.ForeColor = C_MUTED; };
+        scroll.Controls.Add(bgClearBtn);
+
+        _bgTypeLabel = new Label
         {
-            Text      = "by Jose-Jorge HERNANDEZ",
-            Location  = new Point(18, 26),
-            AutoSize  = true,
-            ForeColor = C_CREDIT,
-            Font      = new Font("Segoe UI", 8f, FontStyle.Italic),
+            Location  = new Point(24, 582),
+            Size      = new Size(414, 18),
+            Font      = new Font("Segoe UI", 8.5f),
+            ForeColor = C_MUTED,
+            Text      = "No background set",
         };
+        scroll.Controls.Add(_bgTypeLabel);
 
-        var cancelBtn = FlatBtn("Cancel", 258, 22, 90, 34, C_INPUT, C_TEXT);
-        cancelBtn.FlatAppearance.BorderSize  = 1;
-        cancelBtn.FlatAppearance.BorderColor = C_DIV;
-        cancelBtn.Click += (_, _) => Close();
+        // Controls added in dock order: Fill panel last
+        Controls.Add(header);
+        Controls.Add(footer);
+        Controls.Add(scroll);
 
-        var saveBtn = FlatBtn("Save", 357, 22, 82, 34, C_ACCENT, Color.White);
-        saveBtn.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-        saveBtn.FlatAppearance.BorderSize = 0;
-        saveBtn.Click += (_, _) => { OnSave(); Close(); };
-
-        footer.Controls.AddRange(new Control[] { creditLabel, cancelBtn, saveBtn });
-
-        Controls.AddRange(new Control[] { header, content, footer });
         AcceptButton = saveBtn;
         CancelButton = cancelBtn;
 
@@ -269,6 +312,8 @@ public sealed class ConfigForm : Form
             CardBorderStyle.None => (false, false, true),
             _                    => (true,  false, false),
         };
+        _bgFileBox.Text = AppSettings.BackgroundFile;
+        UpdateBgTypeLabel(AppSettings.BackgroundFile);
         RefreshCount(_folderBox.Text);
     }
 
@@ -282,13 +327,14 @@ public sealed class ConfigForm : Form
         AppSettings.CardBorder            = _rbThinBorder.Checked ? CardBorderStyle.Thin
                                           : _rbNoBorder.Checked   ? CardBorderStyle.None
                                           :                         CardBorderStyle.Polaroid;
+        AppSettings.BackgroundFile        = _bgFileBox.Text;
     }
 
     private void OnBrowse(object? s, EventArgs e)
     {
         using var dlg = new FolderBrowserDialog
         {
-            Description            = "Select the folder containing your JPG photos",
+            Description            = "Select the folder containing your media files",
             SelectedPath           = _folderBox.Text,
             UseDescriptionForTitle = true,
         };
@@ -297,6 +343,39 @@ public sealed class ConfigForm : Form
             _folderBox.Text = dlg.SelectedPath;
             RefreshCount(dlg.SelectedPath);
         }
+    }
+
+    private void OnBrowseBackground(object? s, EventArgs e)
+    {
+        using var dlg = new OpenFileDialog
+        {
+            Title  = "Select background media",
+            Filter = "Media files|*.jpg;*.jpeg;*.png;*.gif;*.webp;*.mp4;*.avi;*.mov;*.mkv;*.wmv;*.m4v;*.flv|All files|*.*",
+            FileName = _bgFileBox.Text,
+        };
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+        {
+            _bgFileBox.Text = dlg.FileName;
+            UpdateBgTypeLabel(dlg.FileName);
+        }
+    }
+
+    private void UpdateBgTypeLabel(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            _bgTypeLabel.Text = "No background set"; _bgTypeLabel.ForeColor = C_MUTED; return;
+        }
+        if (!File.Exists(path))
+        {
+            _bgTypeLabel.Text = "File not found"; _bgTypeLabel.ForeColor = C_RED; return;
+        }
+        var ext  = Path.GetExtension(path)?.ToLowerInvariant() ?? "";
+        var kind = ext is ".mp4" or ".avi" or ".mov" or ".mkv" or ".wmv" or ".m4v" or ".flv"
+            ? "Video"
+            : ext is ".gif" or ".webp" ? "Animated image" : "Still image";
+        _bgTypeLabel.Text      = $"✓  {kind} — {Path.GetFileName(path) ?? ""}";
+        _bgTypeLabel.ForeColor = C_GREEN;
     }
 
     private static readonly string[] AllMediaExts =

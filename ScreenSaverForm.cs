@@ -71,6 +71,13 @@ public sealed class ScreenSaverForm : Form
     private bool            _rollingMode;
     private CardBorderStyle _borderStyle;
 
+    private List<AnimFrame>? _bgFrames;
+    private VideoPlayer?     _bgVideo;
+    private MediaKind        _bgKind;
+    private int              _bgFrameIdx;
+    private double           _bgFrameElapsedMs;
+    private bool             _hasBackground;
+
     private bool ReadyToExit => !_preview && (DateTime.Now - _startTime).TotalSeconds > 1.0;
 
     // ── Constructors ──────────────────────────────────────────────────────────
@@ -133,6 +140,7 @@ public sealed class ScreenSaverForm : Form
         _launchTimer.Interval = Math.Max(500, AppSettings.LaunchIntervalSeconds * 1000);
         _renderTimer.Start();
         _ = LoadMediaAsync();
+        _ = LoadBackgroundAsync();
     }
 
     protected override void OnMouseMove(MouseEventArgs e)  { base.OnMouseMove(e);  HandleMouseMove(e.Location); }
@@ -150,6 +158,8 @@ public sealed class ScreenSaverForm : Form
             foreach (var f in m.Frames)
                 f.Bitmap.Dispose();
         _media.Clear();
+        _bgVideo?.Dispose();
+        if (_bgFrames != null) { foreach (var f in _bgFrames) f.Bitmap.Dispose(); _bgFrames = null; }
         base.OnFormClosed(e);
     }
 
@@ -202,6 +212,32 @@ public sealed class ScreenSaverForm : Form
             _loadingComplete = true;
             _stage           = Stage.Running;
             _errorMessage    = ex.Message;
+        }
+    }
+
+    private async Task LoadBackgroundAsync()
+    {
+        var path = AppSettings.BackgroundFile;
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+
+        var ext = Path.GetExtension(path);
+        int sw  = ClientSize.Width;
+        int sh  = ClientSize.Height;
+
+        if (VideoExts.Contains(ext))
+        {
+            _bgVideo       = await Task.Run(() => new VideoPlayer(path, sw, sh));
+            _bgKind        = MediaKind.Video;
+            _hasBackground = true;
+        }
+        else if (ImageExts.Contains(ext))
+        {
+            int maxDim = Math.Max(sw, sh);
+            var entry  = await Task.Run(() => TryMakeImageEntry(path, maxDim));
+            if (entry == null || IsDisposed) return;
+            _bgFrames      = entry.Frames.ToList();
+            _bgKind        = entry.Kind;
+            _hasBackground = true;
         }
     }
 
@@ -430,6 +466,18 @@ public sealed class ScreenSaverForm : Form
         double dms = (now - _lastTickTime).TotalMilliseconds;
         _lastTickTime = now;
 
+        if (_hasBackground && _bgKind == MediaKind.Animated && _bgFrames is { Count: > 1 })
+        {
+            _bgFrameElapsedMs += dms;
+            int dur = _bgFrames[_bgFrameIdx].DurationMs;
+            while (_bgFrameElapsedMs >= dur)
+            {
+                _bgFrameElapsedMs -= dur;
+                _bgFrameIdx        = (_bgFrameIdx + 1) % _bgFrames.Count;
+                dur                = _bgFrames[_bgFrameIdx].DurationMs;
+            }
+        }
+
         if (_stage == Stage.Clearing)
         {
             float p = (float)((now - _clearStart).TotalSeconds / ClearSecs);
@@ -477,6 +525,23 @@ public sealed class ScreenSaverForm : Form
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(BgColor);
+
+        if (_hasBackground)
+        {
+            SKBitmap? bgBmp = _bgKind == MediaKind.Video
+                ? (_bgVideo?.HasFrame == true ? _bgVideo.CurrentFrame() : null)
+                : _bgFrames?[_bgFrameIdx].Bitmap;
+
+            if (bgBmp != null)
+            {
+                int sw = e.BackendRenderTarget.Width;
+                int sh = e.BackendRenderTarget.Height;
+                using var bp  = new SKPaint { FilterQuality = SKFilterQuality.Low };
+                canvas.DrawBitmap(bgBmp, new SKRect(0, 0, sw, sh), bp);
+                using var dim = new SKPaint { Color = new SKColor(0, 0, 0, 80) };
+                canvas.DrawRect(0, 0, sw, sh, dim);
+            }
+        }
 
         if (_stage == Stage.Loading)
         { DrawMessage(canvas, e.BackendRenderTarget.Width, e.BackendRenderTarget.Height, "Loading…"); return; }

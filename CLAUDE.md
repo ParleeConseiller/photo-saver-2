@@ -113,12 +113,13 @@ Do not use `EaseOutBack` for rotation — its overshoot looks wrong for this use
 
 ```
 HKEY_CURRENT_USER\SOFTWARE\PhotoSaverAnimated
-  PhotoFolder    REG_SZ    (media folder path, default = My Pictures)
-  LaunchInterval REG_DWORD (seconds between cards, default = 3)
-  MaxPhotos      REG_DWORD (max cards on screen, default = 8)
-  MonitorMode    REG_DWORD (0 = All monitors, 1 = Primary only)
-  RollingMode    REG_DWORD (0 = batch reset, 1 = continuous rolling)
-  CardBorder     REG_DWORD (0 = Polaroid, 1 = Thin white, 2 = None)
+  PhotoFolder      REG_SZ    (media folder path, default = My Pictures)
+  LaunchInterval   REG_DWORD (seconds between cards, default = 3)
+  MaxPhotos        REG_DWORD (max cards on screen, default = 8)
+  MonitorMode      REG_DWORD (0 = All monitors, 1 = Primary only)
+  RollingMode      REG_DWORD (0 = batch reset, 1 = continuous rolling)
+  CardBorder       REG_DWORD (0 = Polaroid, 1 = Thin white, 2 = None)
+  BackgroundFile   REG_SZ    (path to background media file, default = "")
 ```
 
 ---
