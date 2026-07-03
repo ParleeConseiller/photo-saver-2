@@ -23,7 +23,6 @@ public sealed class ScreenSaverForm : Form
     private const float MaxPhotoFrac = 0.38f;
     private const float ShadowOff    = 9f;
     private const byte  ShadowAlpha  = 90;
-    private const int   TickMs       = 16;
 
     private static readonly SKColor BgColor = new(18, 18, 18);
 
@@ -62,6 +61,7 @@ public sealed class ScreenSaverForm : Form
     private DateTime _lastTickTime;
     private bool     _loadingComplete;
     private string?  _errorMessage;
+    private int      _pendingVideoLaunches;
 
     private enum Stage { Loading, Running, Clearing }
     private Stage    _stage = Stage.Loading;
@@ -104,7 +104,7 @@ public sealed class ScreenSaverForm : Form
         _gl.KeyDown      += (_, _) => { if (ReadyToExit) RequestExit(); };
         Controls.Add(_gl);
 
-        _renderTimer = new System.Windows.Forms.Timer { Interval = TickMs };
+        _renderTimer = new System.Windows.Forms.Timer { Interval = Math.Max(1, 1000 / AppSettings.RenderFps) };
         _renderTimer.Tick += OnTick;
 
         _launchTimer = new System.Windows.Forms.Timer();
@@ -380,7 +380,7 @@ public sealed class ScreenSaverForm : Form
 
         if (_nextIdx >= _media.Count) { if (_loadingComplete) BeginClear(); return; }
 
-        int active = _cards.Count(c => c.State != CardState.FadingOut);
+        int active = _cards.Count(c => c.State != CardState.FadingOut) + _pendingVideoLaunches;
         if (active >= AppSettings.MaxPhotosOnScreen)
         {
             if (_rollingMode)
@@ -393,7 +393,7 @@ public sealed class ScreenSaverForm : Form
         }
 
         var entry = _media[_nextIdx];
-        int nextZ = _cards.Count > 0 ? _cards.Max(c => c.ZOrder) + 1 : 0;
+        _nextIdx++;
 
         // Card frame shape: Natural = match source dims, Landscape = 16:9, Portrait = 9:16
         int cardW, cardH;
@@ -409,38 +409,63 @@ public sealed class ScreenSaverForm : Form
 
         var fp = ComputeFlightPath(cardW, cardH);
 
-        PhotoCard card;
         if (entry.Kind == MediaKind.Video)
         {
-            // Tell VLC to decode at the card frame dimensions so the buffer is the right size.
-            var vp = new VideoPlayer(entry.VideoPath!, cardW, cardH);
-            card = new PhotoCard
+            // Opening a video (parsing the file, starting VLC's decode thread) can take a
+            // noticeable moment. Do it off the UI/render thread so launching a new video card
+            // never stalls the render tick. The card only enters _cards — and its flight
+            // animation only starts — once the VideoPlayer is actually ready; ZOrder and
+            // LaunchTime are computed fresh at that point, not when the launch was requested.
+            int decodeW = cardW, decodeH = cardH;
+            int cap = AppSettings.VideoDecodeCapPx(AppSettings.VideoQuality);
+            if (cap > 0 && Math.Max(cardW, cardH) > cap)
             {
-                Kind = MediaKind.Video, VideoPlayer = vp,
-                PhotoWidth = entry.Width, PhotoHeight = entry.Height,
-                CardWidth = cardW, CardHeight = cardH,
-                X = fp.StartX, Y = fp.StartY, Rotation = fp.StartRot, Scale = 0.65f,
-                StartX = fp.StartX, StartY = fp.StartY, StartRotation = fp.StartRot,
-                TargetX = fp.TargetX, TargetY = fp.TargetY, TargetRotation = fp.TargetRot,
-                LaunchTime = DateTime.Now, FlightDuration = fp.Duration, ZOrder = nextZ,
-            };
-        }
-        else
-        {
-            card = new PhotoCard
+                float s = (float)cap / Math.Max(cardW, cardH);
+                decodeW = Math.Max(1, (int)(cardW * s));
+                decodeH = Math.Max(1, (int)(cardH * s));
+            }
+
+            _pendingVideoLaunches++;
+            string videoPath = entry.VideoPath!;
+            Task.Run(() =>
             {
-                Kind = entry.Kind, Frames = entry.Frames,
-                PhotoWidth = entry.Width, PhotoHeight = entry.Height,
-                CardWidth = cardW, CardHeight = cardH,
-                X = fp.StartX, Y = fp.StartY, Rotation = fp.StartRot, Scale = 0.65f,
-                StartX = fp.StartX, StartY = fp.StartY, StartRotation = fp.StartRot,
-                TargetX = fp.TargetX, TargetY = fp.TargetY, TargetRotation = fp.TargetRot,
-                LaunchTime = DateTime.Now, FlightDuration = fp.Duration, ZOrder = nextZ,
-            };
+                VideoPlayer? vp = null;
+                try { vp = new VideoPlayer(videoPath, decodeW, decodeH); }
+                catch { /* corrupt/unreadable file — skip this card */ }
+
+                BeginInvoke(() =>
+                {
+                    _pendingVideoLaunches--;
+                    if (IsDisposed || vp == null) { vp?.Dispose(); return; }
+                    if (_stage != Stage.Running) { vp.Dispose(); return; }
+
+                    int z = _cards.Count > 0 ? _cards.Max(c => c.ZOrder) + 1 : 0;
+                    _cards.Add(new PhotoCard
+                    {
+                        Kind = MediaKind.Video, VideoPlayer = vp,
+                        PhotoWidth = entry.Width, PhotoHeight = entry.Height,
+                        CardWidth = cardW, CardHeight = cardH,
+                        X = fp.StartX, Y = fp.StartY, Rotation = fp.StartRot, Scale = 0.65f,
+                        StartX = fp.StartX, StartY = fp.StartY, StartRotation = fp.StartRot,
+                        TargetX = fp.TargetX, TargetY = fp.TargetY, TargetRotation = fp.TargetRot,
+                        LaunchTime = DateTime.Now, FlightDuration = fp.Duration, ZOrder = z,
+                    });
+                });
+            });
+            return;
         }
 
-        _cards.Add(card);
-        _nextIdx++;
+        int nextZ = _cards.Count > 0 ? _cards.Max(c => c.ZOrder) + 1 : 0;
+        _cards.Add(new PhotoCard
+        {
+            Kind = entry.Kind, Frames = entry.Frames,
+            PhotoWidth = entry.Width, PhotoHeight = entry.Height,
+            CardWidth = cardW, CardHeight = cardH,
+            X = fp.StartX, Y = fp.StartY, Rotation = fp.StartRot, Scale = 0.65f,
+            StartX = fp.StartX, StartY = fp.StartY, StartRotation = fp.StartRot,
+            TargetX = fp.TargetX, TargetY = fp.TargetY, TargetRotation = fp.TargetRot,
+            LaunchTime = DateTime.Now, FlightDuration = fp.Duration, ZOrder = nextZ,
+        });
     }
 
     private (float StartX, float StartY, float StartRot,

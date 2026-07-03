@@ -11,9 +11,16 @@ namespace PhotoSaverAnimated;
 /// </summary>
 public sealed class VideoPlayer : IDisposable
 {
-    // One LibVLC instance shared across all VideoPlayers — initialization is expensive
-    private static readonly Lazy<LibVLC> _vlcLazy =
-        new(() => new LibVLC("--quiet", "--no-video-title-show", "--no-osd", "--no-audio"));
+    // One LibVLC instance shared across all VideoPlayers — initialization is expensive.
+    // Reads AppSettings.VideoDecoder once, at first use, since this instance is a
+    // process-wide singleton (see AppSettings.VideoDecoder for why Software can help).
+    private static readonly Lazy<LibVLC> _vlcLazy = new(() =>
+    {
+        var args = new List<string> { "--quiet", "--no-video-title-show", "--no-osd", "--no-audio" };
+        if (AppSettings.VideoDecoder == VideoDecoderMode.Software)
+            args.Add("--avcodec-hw=none");
+        return new LibVLC(args.ToArray());
+    });
     private static LibVLC Vlc => _vlcLazy.Value;
 
     // Triple buffer: [0]=render (UI thread), [1]=VLC decode (VLC thread), [2]=exchange

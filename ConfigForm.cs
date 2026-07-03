@@ -43,6 +43,16 @@ public sealed class ConfigForm : Form
     private readonly RadioButton   _rbBgStretch;
     private readonly RadioButton   _rbBgCenter;
     private readonly RadioButton   _rbBgTile;
+    private readonly RadioButton   _rbVidFull;
+    private readonly RadioButton   _rbVidHigh;
+    private readonly RadioButton   _rbVidMedium;
+    private readonly RadioButton   _rbVidLow;
+    private readonly RadioButton   _rbFps60;
+    private readonly RadioButton   _rbFps30;
+    private readonly RadioButton   _rbFps24;
+    private readonly RadioButton   _rbFps12;
+    private readonly RadioButton   _rbDecHardware;
+    private readonly RadioButton   _rbDecSoftware;
 
     public ConfigForm()
     {
@@ -203,6 +213,34 @@ public sealed class ConfigForm : Form
         _rbBgCenter  = Radio("Center — original size, centred on screen");
         _rbBgTile    = Radio("Tile — repeat image to fill the screen");
         scroll.Controls.Add(RadioGroup(22, 736, 418, _rbBgFill, _rbBgFit, _rbBgStretch, _rbBgCenter, _rbBgTile));
+        scroll.Controls.Add(Divider(22, 860, 418));
+
+        // ── VIDEO PERFORMANCE ────────────────────────────────────────────────
+        scroll.Controls.Add(SectionLabel("VIDEO PERFORMANCE", 22, 876));
+        scroll.Controls.Add(MutedLabel("Decode resolution for video cards — lower is faster with many videos on screen.", 24, 893));
+        _rbVidFull   = Radio("Full — decode at the card's own frame size (default)");
+        _rbVidHigh   = Radio("High — cap decode at 640px");
+        _rbVidMedium = Radio("Medium — cap decode at 480px");
+        _rbVidLow    = Radio("Low — cap decode at 360px");
+        scroll.Controls.Add(RadioGroup(22, 911, 418, _rbVidFull, _rbVidHigh, _rbVidMedium, _rbVidLow));
+        scroll.Controls.Add(Divider(22, 1035, 418));
+
+        // ── ANIMATION FRAME RATE ─────────────────────────────────────────────
+        scroll.Controls.Add(SectionLabel("ANIMATION FRAME RATE", 22, 1051));
+        scroll.Controls.Add(MutedLabel("Redraw rate for the whole scene — biggest lever for GPU load with many videos on screen", 24, 1068));
+        _rbFps60 = Radio("60 fps — smoothest, highest GPU/CPU load (default)");
+        _rbFps30 = Radio("30 fps — noticeably lighter, still smooth");
+        _rbFps24 = Radio("24 fps — cinematic feel, lower load");
+        _rbFps12 = Radio("12 fps — minimum load, visibly choppy");
+        scroll.Controls.Add(RadioGroup(22, 1102, 418, _rbFps60, _rbFps30, _rbFps24, _rbFps12));
+        scroll.Controls.Add(Divider(22, 1192, 418));
+
+        // ── VIDEO DECODER ────────────────────────────────────────────────────
+        scroll.Controls.Add(SectionLabel("VIDEO DECODER", 22, 1208));
+        scroll.Controls.Add(MutedLabel("Try Software if many videos on screen at once still feel slow — GPUs cap simultaneous hardware decode", 24, 1225));
+        _rbDecHardware = Radio("Hardware — use the GPU's video decoder (default)");
+        _rbDecSoftware = Radio("Software — decode on CPU; avoids GPU decode-session limits");
+        scroll.Controls.Add(RadioGroup(22, 1243, 418, _rbDecHardware, _rbDecSoftware));
 
         Controls.AddRange(new Control[] { header, scroll, footer });
         AcceptButton = saveBtn;
@@ -265,6 +303,22 @@ public sealed class ConfigForm : Form
             BackgroundFit.Tile    => (false, false, false, false, true),
             _                     => (true,  false, false, false, false),  // Fill (default)
         };
+        (_rbVidFull.Checked, _rbVidHigh.Checked, _rbVidMedium.Checked, _rbVidLow.Checked) = AppSettings.VideoQuality switch
+        {
+            VideoDecodeQuality.High   => (false, true,  false, false),
+            VideoDecodeQuality.Medium => (false, false, true,  false),
+            VideoDecodeQuality.Low    => (false, false, false, true),
+            _                         => (true,  false, false, false),  // Full (default)
+        };
+        (_rbFps60.Checked, _rbFps30.Checked, _rbFps24.Checked, _rbFps12.Checked) = AppSettings.RenderFps switch
+        {
+            30 => (false, true,  false, false),
+            24 => (false, false, true,  false),
+            12 => (false, false, false, true),
+            _  => (true,  false, false, false),  // 60 (default)
+        };
+        (_rbDecHardware.Checked, _rbDecSoftware.Checked) = AppSettings.VideoDecoder == VideoDecoderMode.Software
+            ? (false, true) : (true, false);
         RefreshCount(_folderBox.Text);
     }
 
@@ -287,6 +341,15 @@ public sealed class ConfigForm : Form
                                           : _rbBgCenter.Checked  ? BackgroundFit.Center
                                           : _rbBgTile.Checked    ? BackgroundFit.Tile
                                           :                        BackgroundFit.Fill;
+        AppSettings.VideoQuality          = _rbVidHigh.Checked   ? VideoDecodeQuality.High
+                                          : _rbVidMedium.Checked ? VideoDecodeQuality.Medium
+                                          : _rbVidLow.Checked    ? VideoDecodeQuality.Low
+                                          :                        VideoDecodeQuality.Full;
+        AppSettings.RenderFps             = _rbFps30.Checked ? 30
+                                          : _rbFps24.Checked ? 24
+                                          : _rbFps12.Checked ? 12
+                                          :                    60;
+        AppSettings.VideoDecoder          = _rbDecSoftware.Checked ? VideoDecoderMode.Software : VideoDecoderMode.Hardware;
     }
 
     private void OnBrowse(object? s, EventArgs e)
